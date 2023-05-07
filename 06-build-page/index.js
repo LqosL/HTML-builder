@@ -2,7 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const route = __dirname;
 const copyroute = path.join(__dirname, '.\\project-dist');
-const readline = require('readline');
 
 async function cleanFolder(folder) {
   let files = [];
@@ -56,35 +55,32 @@ const mergestyles = (sourceroute, result) => {
     }));
 };
 
-const createhtml = (template, source, destination) => {
-  const templateRead = fs.createReadStream(template, 'utf-8');
+async function createhtml (templateFile, source, destination) {
   const htmlWrite = fs.createWriteStream(destination, 'utf-8');
-
-  const rl = readline.createInterface({input: templateRead});
-  rl.on('line', (line) => {
-    if (line.trim().slice(0,2) === '{{'){
-      line.split(' ').forEach(tagname=>{
-        if (tagname.length > 4) {
-          const filename = tagname.trim().slice(2, -2) + '.html';
-          const copyHTML = fs.createReadStream(path.join(source, '.\\', filename));
-          copyHTML.on('data', (data) => {
-            htmlWrite.write(data, 'utf-8');
-          });
-        }
-      });
-    }else{
-      htmlWrite.write(line, 'utf-8');
-      htmlWrite.write('\r\n');
+  const files = await fs.promises.readdir(source, {withFileTypes:true});
+  const params = {};
+  for (const element of files) {
+    if(element.name.slice(-4) === 'html') {
+      const paramName = element.name.slice(0, -5);
+      const paramValue = (await fs.promises.readFile(path.join(source, element.name))).toString();
+      params[paramName] = paramValue;
     }
+  }
+
+  const template = (await fs.promises.readFile(templateFile)).toString();
+  let result = template;
+  Object.keys(params).forEach(key => {
+    result = result.replaceAll('{{' + key + '}}', params[key]);
   });
-};
+  htmlWrite.write(result, 'utf-8');
+}
 
 async function mergeHTML() {
   await cleanFolder(path.join(__dirname, '.\\project-dist\\'), );
   await fs.promises.mkdir(path.join(__dirname, '.\\project-dist'), {recursive: true});
   copyDir(path.join(route, '.\\', 'assets'), path.join(copyroute, '.\\', 'assets'));
   mergestyles(path.join(route, '.\\styles'), path.join(__dirname, '.\\project-dist\\style.css'));
-  createhtml(path.join(__dirname, '.\\template.html'), path.join(__dirname, '.\\components'), path.join(copyroute, '.\\index.html'));
+  await createhtml(path.join(__dirname, '.\\template.html'), path.join(__dirname, '.\\components'), path.join(copyroute, '.\\index.html'));
 }
 
 mergeHTML();
